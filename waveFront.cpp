@@ -87,8 +87,10 @@ public:
 			AddObstacle(GetMouseX(), GetMouseY());
 		}
 		else if (GetMouse(1).bHeld) {
-			//RemoveObstacle(GetMouseX(), GetMouseY());
 			WaveFront(GetMouseX(), GetMouseY());
+		}
+		else if (GetKey(olc::Key::R).bHeld) {
+			RemoveObstacle(GetMouseX(), GetMouseY());
 		}
 
 		return true;
@@ -97,7 +99,8 @@ public:
 private:
 
 	void WaveFront(float posX, float posY) {
-		AssignNeighbors();
+		//AssignNeighbors();
+		ResetCells();
 		maxDistance = 0;
 
 		int cellX = posX / cellSize;
@@ -114,7 +117,7 @@ private:
 				if (cells[x + y * segments].isObstacle) continue;
 				if (cells[x + y * segments].visited) {
 					olc::Pixel p;
-					p.r = Map(cells[x + y * segments].distanceFromGoal, 0, 50, 0, 250);
+					p.r = Map(cells[x + y * segments].distanceFromGoal, 0, 30, 0, 250);
 					p.g = 0;
 					p.b = 0;
 					p.a = 250;
@@ -132,8 +135,6 @@ private:
 		}
 	}
 
-
-
 	void GenerateCells() {
 		cells = new Cell[segments * segments];
 		for (int x = 0; x < segments; ++x) {
@@ -142,15 +143,13 @@ private:
 			}
 		}
 		AddBorders();
-		//AssignNeighbors();
+		AssignNeighbors();
 	}
 
 	void ResetCells() {
 		for (int x = 0; x < segments; ++x) {
 			for (int y = 0; y < segments; ++y) {
-				cells[x + y * segments].distanceFromGoal = 99999;
 				cells[x + y * segments].visited = false;
-				cells[x + y * segments].neighbors.clear();
 			}
 		}
 	}
@@ -160,47 +159,51 @@ private:
 		Cell* currentCell;
 		for (int x = 0; x < segments; ++x) {
 			for (int y = 0; y < segments; ++y) {
-				if (!cells[x + y * segments].isObstacle) {
-					//std::cout << x << " " << y << std::endl;
-					currentCell = &cells[x + y * segments];
-					//top left
-					if (!cells[(x - 1) + ((y + 1) * segments)].isObstacle) {
-						currentCell->neighbors.emplace_back(&cells[(x - 1) + ((y + 1) * segments)]);
-					}
-					//middle left
-					if (!cells[(x - 1) + ((y) * segments)].isObstacle) {
-						currentCell->neighbors.emplace_back(&cells[(x - 1) + ((y) * segments)]);
-					}
-					//bottom left
-					if (!cells[(x - 1) + ((y - 1) * segments)].isObstacle) {
-						currentCell->neighbors.emplace_back(&cells[(x - 1) + ((y - 1) * segments)]);
-					}
-					
-					//top middle
-					if (!cells[(x) + ((y + 1) * segments)].isObstacle) {
-						currentCell->neighbors.emplace_back(&cells[(x) + ((y + 1) * segments)]);
-					}
-					//bottom middle
-					if (!cells[(x)+((y - 1) * segments)].isObstacle) {
-						currentCell->neighbors.emplace_back(&cells[(x)+((y - 1) * segments)]);
-					}
-					
-					//top right
-					if (!cells[(x + 1) + ((y + 1) * segments)].isObstacle) {
-						currentCell->neighbors.emplace_back(&cells[(x + 1) + ((y + 1) * segments)]);
-					}
-					//middle right
-					if (!cells[(x + 1) + ((y)* segments)].isObstacle) {
-						currentCell->neighbors.emplace_back(&cells[(x + 1) + ((y)* segments)]);
-					}
-					//bottom right
-					if (!cells[(x + 1) + ((y - 1) * segments)].isObstacle) {
-						currentCell->neighbors.emplace_back(&cells[(x + 1) + ((y - 1) * segments)]);
-					}
+				currentCell = &cells[x + y * segments];
+				if (!currentCell->isObstacle) {
+					UpdateNeighbors(currentCell, x, y);
 				}
-				//std::cout << x << " " << y << " neighbors added: " << currentCell.neighbors.size() << std::endl;
-				//std::cout << x << " " << y << " " << std::boolalpha<< cells[x + y * segments].isObstacle << std::endl;
 			}
+		}
+	}
+
+	void UpdateNeighbors(Cell* currentCell, int x, int y) {
+		
+		currentCell->neighbors.clear();
+
+		//top left
+		if (!cells[(x - 1) + ((y + 1) * segments)].isObstacle) {
+			currentCell->neighbors.emplace_back(&cells[(x - 1) + ((y + 1) * segments)]);
+		}
+		//middle left
+		if (!cells[(x - 1) + ((y)* segments)].isObstacle) {
+			currentCell->neighbors.emplace_back(&cells[(x - 1) + ((y)* segments)]);
+		}
+		//bottom left
+		if (!cells[(x - 1) + ((y - 1) * segments)].isObstacle) {
+			currentCell->neighbors.emplace_back(&cells[(x - 1) + ((y - 1) * segments)]);
+		}
+
+		//top middle
+		if (!cells[(x)+((y + 1) * segments)].isObstacle) {
+			currentCell->neighbors.emplace_back(&cells[(x)+((y + 1) * segments)]);
+		}
+		//bottom middle
+		if (!cells[(x)+((y - 1) * segments)].isObstacle) {
+			currentCell->neighbors.emplace_back(&cells[(x)+((y - 1) * segments)]);
+		}
+
+		//top right
+		if (!cells[(x + 1) + ((y + 1) * segments)].isObstacle) {
+			currentCell->neighbors.emplace_back(&cells[(x + 1) + ((y + 1) * segments)]);
+		}
+		//middle right
+		if (!cells[(x + 1) + ((y)* segments)].isObstacle) {
+			currentCell->neighbors.emplace_back(&cells[(x + 1) + ((y)* segments)]);
+		}
+		//bottom right
+		if (!cells[(x + 1) + ((y - 1) * segments)].isObstacle) {
+			currentCell->neighbors.emplace_back(&cells[(x + 1) + ((y - 1) * segments)]);
 		}
 	}
 
@@ -219,11 +222,16 @@ private:
 		int cellX = posX / cellSize;
 		int cellY = posY / cellSize;
 
-		//std::cout << posX << " " <<posY<< " : " << cellX << " " << cellY << std::endl;
-
 		int posInArray = cellX + cellY * segments;
 
 		cells[posInArray].isObstacle = true;
+
+		for (auto cell : cells[posInArray].neighbors) {
+			UpdateNeighbors(cell, cell->position.x, cell->position.y);
+		}
+
+		cells[posInArray].neighbors.clear();
+
 		DrawCell(&cells[posInArray]);
 	}
 
@@ -235,6 +243,13 @@ private:
 
 		if (!cells[posInArray].isBorderCell) {
 			cells[posInArray].isObstacle = false;
+			
+			UpdateNeighbors(&cells[posInArray], cellX, cellY);
+
+			for (auto cell : cells[posInArray].neighbors) {
+				UpdateNeighbors(cell, cell->position.x, cell->position.y);
+			}
+
 			DrawCell(&cells[posInArray]);
 		}
 	}
