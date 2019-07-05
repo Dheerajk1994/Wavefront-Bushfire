@@ -1,72 +1,22 @@
 #define OLC_PGE_APPLICATION
+
 #include <iostream>
 #include "olcPixelGameEngine.h"
+#include "Cell.h"
+#include "Blob.h"
 #include <vector>
 
 const int WINDOW_SIZE = 800;
 const int WINDOW_RATIO = 1;
 
-float maxDistance = 0;
-
-struct Cell {
-	olc::Vector2 position;
-	bool isObstacle = false;
-	bool isBorderCell = false;
-	float distanceFromGoal = 99999;
-	bool visited = false;
-	std::vector<Cell*> neighbors;
-
-	Cell(){
-		//neighbors.reserve(8);
-	}
-
-	Cell(olc::Vector2 _position, bool _isObst, bool _isBorder) {
-		position = _position;
-		isObstacle = _isObst;
-		isBorderCell = _isBorder;
-	}
-
-	void UpdateDistanceToNeighbors() {
-		if (this->distanceFromGoal > maxDistance) maxDistance = this->distanceFromGoal;
-		this->visited = true;
-		float distToAdd = 0;
-		for (auto& cell : neighbors) {
-			if (cell->position.x != this->position.x && cell->position.y != this->position.y) {
-				distToAdd = 1.4;
-			}
-			else {
-				distToAdd = 1;
-			}
-			if (!cell->visited) {
-				cell->distanceFromGoal = this->distanceFromGoal + distToAdd;
-				cell->UpdateDistanceToNeighbors();
-			}
-			else if (this->distanceFromGoal < cell->distanceFromGoal - 1) {
-				cell->distanceFromGoal = this->distanceFromGoal + distToAdd;
-				cell->UpdateDistanceToNeighbors();
-			}
-		}
-	}
-
-	Cell* GetClosestNeighborToGoal() {
-		float shortestDistance = this->distanceFromGoal;
-		Cell* shortestNeighbor = this;
-		for (auto& cell : neighbors) {
-			if (cell->distanceFromGoal < shortestDistance) {
-				shortestNeighbor = cell;
-				shortestDistance = cell->distanceFromGoal;
-			}
-		}
-		return shortestNeighbor;
-	}
-};
-
+int Cell::maxDistance = 0;
 
 class Application : public olc::PixelGameEngine {
 private:
 	int segments = 20;
 	float cellSize = 0;
 	Cell* cells;
+	std::vector<Blob*> blobs;
 
 public:
 	Application() {
@@ -92,45 +42,74 @@ public:
 		else if (GetKey(olc::Key::R).bHeld) {
 			RemoveObstacle(GetMouseX(), GetMouseY());
 		}
+		else if (GetKey(olc::Key::A).bReleased) {
+			int index = CellIndexAtPosition(GetMouseX(), GetMouseY());
+			Cell cell = cells[index];
+			olc::Vector2 pos = olc::Vector2(GetMouseX(), GetMouseY());
+			Blob* b = new Blob(pos);
+			blobs.emplace_back(b);
+		}
+		
+		for (auto *b : blobs) {
+			b->UpdatePosition( &cells[CellIndexAtPosition(b->currentPosition.x, b->currentPosition.y)]);
+		}
+		
+		RedrawScreen();
 
 		return true;
 	}
 	
 private:
 
+	void RedrawScreen() {
+		for (int x = 0; x < segments; ++x) {
+			for (int y = 0; y < segments; ++y) {
+				DrawCell(&cells[x + y * segments]);
+			}
+		}
+		DrawGrid();
+		DrawBlobs();
+	}
+
+	int CellIndexAtPosition(float posX, float posY) {
+		std::cout << (posX / cellSize) + (posY / cellSize) * segments << std::endl;
+		return((posX / cellSize) + (posY / cellSize) * segments);
+	}
+	
 	void WaveFront(float posX, float posY) {
 		//AssignNeighbors();
 		ResetCells();
-		maxDistance = 0;
-
+		Cell::maxDistance = 0;
 		int cellX = posX / cellSize;
 		int cellY = posY / cellSize;
 		cells[cellX + cellY * segments].distanceFromGoal = 0;
 		cells[cellX + cellY * segments].UpdateDistanceToNeighbors();
-		WaveFrontSimulation();
-	}
-
-	void WaveFrontSimulation() {
-		std::cout << "max distance: " << maxDistance << std::endl;
 		for (int x = 0; x < segments; ++x) {
 			for (int y = 0; y < segments; ++y) {
-				if (cells[x + y * segments].isObstacle) continue;
-				if (cells[x + y * segments].visited) {
+				cells[x + y * segments].SetVector();
+			}
+		}
+		WaveFrontSimulation();
+	}
+	
+	void WaveFrontSimulation() {
+		//std::cout << "max distance: " << maxDistance << std::endl;
+		Cell cell;
+		for (int x = 0; x < segments; ++x) {
+			for (int y = 0; y < segments; ++y) {
+				cell = cells[x + y * segments];
+				if (cell.isObstacle) continue;
+				if (cell.visited) {
 					olc::Pixel p;
-					p.r = Map(cells[x + y * segments].distanceFromGoal, 0, 30, 0, 250);
+					p.r = Map(cell.distanceFromGoal, 0, 30, 0, 250);
 					p.g = 0;
 					p.b = 0;
 					p.a = 250;
-					FillRect(cells[x + y * segments].position.x * cellSize + 1, cells[x + y * segments].position.y * cellSize + 1, cellSize - 1, cellSize - 1, p);
+					FillRect(cell.positionOnGrid.x + 1, cell.positionOnGrid.y  + 1, cellSize - 1, cellSize- 1, p);
 				}
 				else {
-					FillRect(cells[x + y * segments].position.x * cellSize + 1, cells[x + y * segments].position.y * cellSize + 1, cellSize - 1, cellSize - 1, olc::RED);
+					FillRect(cells[x + y * segments].positionOnGrid.x  + 1, cell.positionOnGrid.y  + 1, cellSize - 1, cellSize- 1, olc::RED);
 				}
-				
-
-				//Cell* closestNeighbor = cells[x + y * segments].GetClosestNeighborToGoal();
-				//DrawLine(cells[x + y * segments].position.x * cellSize + cellSize/2, cells[x + y * segments].position.y * cellSize + cellSize / 2,
-				//	closestNeighbor->position.x * cellSize + cellSize / 2, closestNeighbor->position.y * cellSize + cellSize / 2, olc::WHITE);
 			}
 		}
 	}
@@ -139,7 +118,8 @@ private:
 		cells = new Cell[segments * segments];
 		for (int x = 0; x < segments; ++x) {
 			for (int y = 0; y < segments; ++y) {
-				cells[x + y * segments].position = olc::Vector2(x, y);
+				cells[x + y * segments].positionOnGrid = olc::Vector2(x * cellSize, y * cellSize);
+				cells[x + y * segments].positionInCellArray = olc::Vector2(x, y);
 			}
 		}
 		AddBorders();
@@ -227,7 +207,7 @@ private:
 		cells[posInArray].isObstacle = true;
 
 		for (auto cell : cells[posInArray].neighbors) {
-			UpdateNeighbors(cell, cell->position.x, cell->position.y);
+			UpdateNeighbors(cell, cell->positionInCellArray.x, cell->positionInCellArray.y);
 		}
 
 		cells[posInArray].neighbors.clear();
@@ -247,7 +227,7 @@ private:
 			UpdateNeighbors(&cells[posInArray], cellX, cellY);
 
 			for (auto cell : cells[posInArray].neighbors) {
-				UpdateNeighbors(cell, cell->position.x, cell->position.y);
+				UpdateNeighbors(cell, cell->positionInCellArray.x, cell->positionInCellArray.y);
 			}
 
 			DrawCell(&cells[posInArray]);
@@ -284,14 +264,20 @@ private:
 	void DrawCell(const Cell* cell) {
 		if (cell->isObstacle) {
 			if (cell->isBorderCell) {
-				FillRect(cell -> position.x * cellSize + 1, cell -> position.y * cellSize + 1, cellSize - 1, cellSize - 1, olc::YELLOW);
+				FillRect(cell -> positionOnGrid.x  + 1, cell -> positionOnGrid.y  + 1, cellSize - 1, cellSize - 1, olc::YELLOW);
 			}
 			else {
-				FillRect(cell->position.x * cellSize + 1, cell->position.y * cellSize + 1, cellSize - 1, cellSize - 1, olc::YELLOW);
+				FillRect(cell->positionOnGrid.x  + 1, cell->positionOnGrid.y  + 1, cellSize - 1, cellSize - 1, olc::YELLOW);
 			}
 		}
 		else {
-			FillRect(cell->position.x * cellSize + 1, cell->position.y * cellSize + 1, cellSize - 1, cellSize - 1, olc::BLACK);
+			FillRect(cell->positionOnGrid.x + 1, cell->positionOnGrid.y + 1, cellSize - 1, cellSize - 1, olc::BLACK);
+		}
+	}
+
+	void DrawBlobs() {
+		for (auto *b : blobs) {
+			FillCircle(b->currentPosition.x, b->currentPosition.y, 5.0f);
 		}
 	}
 
